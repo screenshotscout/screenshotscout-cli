@@ -1,6 +1,6 @@
 # Screenshot Scout CLI
 
-Official command-line interface for the Screenshot Scout screenshot API.
+Official command-line interface for the [Screenshot Scout](https://screenshotscout.com/) screenshot API.
 
 Screenshot Scout CLI captures one webpage or builds one capture URL from a terminal command. It sends the capture options you supply and preserves the returned binary, JSON, or URL data.
 

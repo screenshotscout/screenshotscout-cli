@@ -37,6 +37,11 @@ export interface ParsedCaptureCommandInput {
   readonly targetUrl: string;
 }
 
+export interface ParsedCaptureUrlCommandInput {
+  readonly captureOptions: CaptureOptions;
+  readonly targetUrl: string;
+}
+
 interface ParsedCliInput extends ParsedCaptureInput {
   readonly method?: string;
   readonly optionsPath?: string;
@@ -97,6 +102,22 @@ export async function parseCaptureCommandInput(
     captureOptions: parsed.captureOptions,
     method: parsed.method,
     outputPath: parsed.outputPath,
+    targetUrl: parsed.positionals[0]!,
+  };
+}
+
+/** Parse the capture-url command's URL and capture options. */
+export async function parseCaptureUrlCommandInput(
+  args: readonly string[],
+  inputReader: CaptureOptionsInputReader = DEFAULT_INPUT_READER,
+): Promise<ParsedCaptureUrlCommandInput> {
+  const parsed = await parseCaptureInputInternal(args, inputReader, false);
+  if (parsed.positionals.length !== 1) {
+    throw new CliUsageError("Command 'capture-url' requires exactly one URL.");
+  }
+
+  return {
+    captureOptions: parsed.captureOptions,
     targetUrl: parsed.positionals[0]!,
   };
 }

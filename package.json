@@ -10,7 +10,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
-    "test": "tsx --test",
+    "test": "tsx --test test/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "author": "Oleksii Velykyi",

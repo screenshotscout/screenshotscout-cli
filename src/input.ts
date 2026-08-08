@@ -10,11 +10,14 @@ import {
 import { CliUsageError } from "./cli-usage-error.js";
 
 const OPTIONS_INPUT_NAME = "options";
+const METHOD_INPUT_NAME = "method";
+const OUTPUT_INPUT_NAME = "output";
 const OMIT_VALUE = Symbol("omit-value");
 
 interface ParseOptionConfiguration {
   readonly type: "boolean" | "string";
   readonly multiple?: boolean;
+  readonly short?: string;
 }
 
 export interface CaptureOptionsInputReader {
@@ -27,8 +30,17 @@ export interface ParsedCaptureInput {
   readonly positionals: readonly string[];
 }
 
+export interface ParsedCaptureCommandInput {
+  readonly captureOptions: CaptureOptions;
+  readonly method: string | undefined;
+  readonly outputPath: string | undefined;
+  readonly targetUrl: string;
+}
+
 interface ParsedCliInput extends ParsedCaptureInput {
+  readonly method?: string;
   readonly optionsPath?: string;
+  readonly outputPath?: string;
 }
 
 interface NormalizedArguments {
@@ -51,7 +63,8 @@ const DEFINITIONS_BY_API_NAME: ReadonlyMap<string, CaptureOptionDefinition> =
     DEFINITIONS.map((definition) => [definition.apiName, definition] as const),
   );
 
-const PARSE_OPTIONS = createParseOptions();
+const CAPTURE_PARSE_OPTIONS = createParseOptions(false);
+const CAPTURE_COMMAND_PARSE_OPTIONS = createParseOptions(true);
 
 const DEFAULT_INPUT_READER: CaptureOptionsInputReader = {
   readFile: (path) => readFile(path, "utf8"),
@@ -63,7 +76,37 @@ export async function parseCaptureInput(
   args: readonly string[],
   inputReader: CaptureOptionsInputReader = DEFAULT_INPUT_READER,
 ): Promise<ParsedCaptureInput> {
-  const parsedCliInput = parseCliInput(args);
+  const parsed = await parseCaptureInputInternal(args, inputReader, false);
+  return {
+    captureOptions: parsed.captureOptions,
+    positionals: parsed.positionals,
+  };
+}
+
+/** Parse the capture command's URL, capture options, and two CLI controls. */
+export async function parseCaptureCommandInput(
+  args: readonly string[],
+  inputReader: CaptureOptionsInputReader = DEFAULT_INPUT_READER,
+): Promise<ParsedCaptureCommandInput> {
+  const parsed = await parseCaptureInputInternal(args, inputReader, true);
+  if (parsed.positionals.length !== 1) {
+    throw new CliUsageError("Command 'capture' requires exactly one URL.");
+  }
+
+  return {
+    captureOptions: parsed.captureOptions,
+    method: parsed.method,
+    outputPath: parsed.outputPath,
+    targetUrl: parsed.positionals[0]!,
+  };
+}
+
+async function parseCaptureInputInternal(
+  args: readonly string[],
+  inputReader: CaptureOptionsInputReader,
+  includeCaptureControls: boolean,
+): Promise<ParsedCliInput> {
+  const parsedCliInput = parseCliInput(args, includeCaptureControls);
   let fileOptions: CaptureOptions = {};
 
   if (parsedCliInput.optionsPath !== undefined) {
@@ -79,13 +122,19 @@ export async function parseCaptureInput(
       ...fileOptions,
       ...parsedCliInput.captureOptions,
     },
+    ...(parsedCliInput.method === undefined
+      ? {}
+      : { method: parsedCliInput.method }),
+    ...(parsedCliInput.outputPath === undefined
+      ? {}
+      : { outputPath: parsedCliInput.outputPath }),
     positionals: parsedCliInput.positionals,
   };
 }
 
-function createParseOptions(): Readonly<
-  Record<string, ParseOptionConfiguration>
-> {
+function createParseOptions(
+  includeCaptureControls: boolean,
+): Readonly<Record<string, ParseOptionConfiguration>> {
   const options: Record<string, ParseOptionConfiguration> = {};
 
   for (const definition of DEFINITIONS) {
@@ -95,22 +144,36 @@ function createParseOptions(): Readonly<
   }
 
   options[OPTIONS_INPUT_NAME] = { type: "string" };
+  if (includeCaptureControls) {
+    options[METHOD_INPUT_NAME] = { type: "string" };
+    options[OUTPUT_INPUT_NAME] = { type: "string", short: "o" };
+  }
   return options;
 }
 
-function parseCliInput(args: readonly string[]): ParsedCliInput {
+function parseCliInput(
+  args: readonly string[],
+  includeCaptureControls: boolean,
+): ParsedCliInput {
   const normalized = normalizeArguments(args);
   let parsed: ReturnType<typeof parseNormalizedArguments>;
 
   try {
-    parsed = parseNormalizedArguments(normalized.args);
+    parsed = parseNormalizedArguments(
+      normalized.args,
+      includeCaptureControls
+        ? CAPTURE_COMMAND_PARSE_OPTIONS
+        : CAPTURE_PARSE_OPTIONS,
+    );
   } catch (error) {
     throw usageErrorFrom(error);
   }
 
   const captureOptions: Record<string, unknown> = {};
   const occurrences = new Map<string, number>();
+  let method: string | undefined;
   let optionsPath: string | undefined;
+  let outputPath: string | undefined;
 
   for (const token of parsed.tokens) {
     if (token.kind !== "option") continue;
@@ -121,6 +184,18 @@ function parseCliInput(args: readonly string[]): ParsedCliInput {
     if (token.name === OPTIONS_INPUT_NAME) {
       if (count > 1) throw duplicateOption(token.rawName);
       optionsPath = requiredTokenValue(token);
+      continue;
+    }
+
+    if (token.name === METHOD_INPUT_NAME) {
+      if (count > 1) throw duplicateOption(token.rawName);
+      method = requiredTokenValue(token);
+      continue;
+    }
+
+    if (token.name === OUTPUT_INPUT_NAME) {
+      if (count > 1) throw duplicateOption(token.rawName);
+      outputPath = requiredTokenValue(token);
       continue;
     }
 
@@ -143,14 +218,24 @@ function parseCliInput(args: readonly string[]): ParsedCliInput {
     positionals: [...parsed.positionals],
   };
 
-  return optionsPath === undefined ? result : { ...result, optionsPath };
+  return {
+    ...result,
+    ...(method === undefined ? {} : { method }),
+    ...(optionsPath === undefined ? {} : { optionsPath }),
+    ...(outputPath === undefined ? {} : { outputPath }),
+  };
 }
 
-function parseNormalizedArguments(args: readonly string[]) {
+function parseNormalizedArguments(
+  args: readonly string[],
+  options: Readonly<
+    Record<string, ParseOptionConfiguration>
+  > = CAPTURE_PARSE_OPTIONS,
+) {
   return parseArgs({
     args,
     allowPositionals: true,
-    options: PARSE_OPTIONS,
+    options,
     strict: true,
     tokens: true,
   });

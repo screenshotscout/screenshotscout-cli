@@ -8,6 +8,7 @@ import {
   type CaptureOptionDefinition,
 } from "./capture-options.js";
 import { CliUsageError } from "./cli-usage-error.js";
+import type { CaptureMethod } from "./sdk.js";
 
 const OPTIONS_INPUT_NAME = "options";
 const METHOD_INPUT_NAME = "method";
@@ -32,7 +33,7 @@ export interface ParsedCaptureInput {
 
 export interface ParsedCaptureCommandInput {
   readonly captureOptions: CaptureOptions;
-  readonly method: string | undefined;
+  readonly method: CaptureMethod | undefined;
   readonly outputPath: string | undefined;
   readonly targetUrl: string;
 }
@@ -43,7 +44,7 @@ export interface ParsedCaptureUrlCommandInput {
 }
 
 interface ParsedCliInput extends ParsedCaptureInput {
-  readonly method?: string;
+  readonly method?: CaptureMethod;
   readonly optionsPath?: string;
   readonly outputPath?: string;
 }
@@ -192,7 +193,7 @@ function parseCliInput(
 
   const captureOptions: Record<string, unknown> = {};
   const occurrences = new Map<string, number>();
-  let method: string | undefined;
+  let method: CaptureMethod | undefined;
   let optionsPath: string | undefined;
   let outputPath: string | undefined;
 
@@ -210,7 +211,7 @@ function parseCliInput(
 
     if (token.name === METHOD_INPUT_NAME) {
       if (count > 1) throw duplicateOption(token.rawName);
-      method = requiredTokenValue(token);
+      method = parseCaptureMethod(requiredTokenValue(token));
       continue;
     }
 
@@ -383,6 +384,14 @@ function parseFiniteNumber(value: string, optionName: string): number {
   }
 
   return parsed;
+}
+
+function parseCaptureMethod(value: string): CaptureMethod {
+  if (value !== "get" && value !== "post") {
+    throw new CliUsageError("Option '--method' must be 'get' or 'post'.");
+  }
+
+  return value;
 }
 
 function parseOptionsObject(text: string): CaptureOptions {

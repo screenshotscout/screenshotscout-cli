@@ -4,6 +4,7 @@ import test from "node:test";
 import { CAPTURE_OPTION_DEFINITIONS } from "../../src/capture-options.js";
 import { CliUsageError } from "../../src/cli-usage-error.js";
 import {
+  parseCaptureCommandInput,
   parseCaptureInput,
   type CaptureOptionsInputReader,
 } from "../../src/input.js";
@@ -185,6 +186,29 @@ void test("rejects duplicate scalar, boolean, and options-input flags", async ()
       /only be specified once/u,
     );
   }
+});
+
+void test("rejects an invalid capture method before reading options input", async () => {
+  let reads = 0;
+  const reader: CaptureOptionsInputReader = {
+    readFile: () => {
+      reads += 1;
+      return Promise.resolve("{}");
+    },
+    readStdin: () => {
+      reads += 1;
+      return Promise.resolve("{}");
+    },
+  };
+
+  await expectUsageError(
+    parseCaptureCommandInput(
+      ["target", "--method=put", "--options=file.json"],
+      reader,
+    ),
+    /'get' or 'post'/u,
+  );
+  assert.equal(reads, 0);
 });
 
 void test("parses a snake_case JSON object and omits nulls and empty arrays", async () => {

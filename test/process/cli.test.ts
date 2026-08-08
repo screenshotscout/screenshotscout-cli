@@ -140,6 +140,18 @@ void test("compiled executable uses exit 2 for missing, unknown, alias, and malf
   }
 });
 
+void test("compiled executable validates --method before SDK credentials", async () => {
+  const result = await runCliProcess(["capture", "target", "--method=put"]);
+
+  assert.equal(result.code, 2);
+  assert.deepEqual(result.standardOutput, Buffer.alloc(0));
+  assert.equal(
+    result.standardError.toString("utf8"),
+    "Option '--method' must be 'get' or 'post'.\n",
+  );
+  assertNoProgrammingDump(result.standardError);
+});
+
 void test("compiled executable classifies malformed options JSON as usage", async () => {
   const result = await runCliProcess(["capture", "target", "--options=-"], {
     standardInput: "{",

@@ -65,7 +65,7 @@ void test("generates exhaustive command help from the capture option descriptor"
 
   assert.match(ROOT_HELP, /screenshotscout capture <url>/u);
   assert.match(captureHelp, /--method <get\|post>/u);
-  assert.match(captureHelp, /-o, --output <path\|->/u);
+  assert.match(captureHelp, /^ {2}-o, --output <path\|-> {4}Write/mu);
   assert.doesNotMatch(captureUrlHelp, /--method|--output/u);
 });
 

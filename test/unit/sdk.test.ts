@@ -10,7 +10,6 @@ import {
   type ScreenshotScoutClientOptions,
 } from "@screenshotscout/sdk";
 
-import { CliUsageError } from "../../src/cli-usage-error.js";
 import {
   captureWithScreenshotScoutClient,
   createScreenshotScoutClient,
@@ -128,29 +127,6 @@ void test("maps explicit lowercase get and post to the SDK request option", asyn
       captureOptions,
       { method: expected },
     ]);
-  }
-});
-
-void test("rejects every other method before calling the SDK client", () => {
-  for (const method of ["GET", "POST", "put", "", " get"] as const) {
-    const recording = createRecordingClient();
-
-    assert.throws(
-      () =>
-        captureWithScreenshotScoutClient(
-          recording.client,
-          "unmodified target",
-          {},
-          method,
-        ),
-      (error: unknown) => {
-        assert.ok(error instanceof CliUsageError);
-        assert.equal(error.exitCode, 2);
-        assert.match(error.message, /'get' or 'post'/u);
-        return true;
-      },
-    );
-    assert.equal(recording.calls.length, 0);
   }
 });
 

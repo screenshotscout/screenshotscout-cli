@@ -33,7 +33,7 @@ export function captureCommandHelp(): string {
 CLI controls:
   --options <path|->       Read a snake_case JSON options object from a file or standard input.
   --method <get|post>      Select the SDK capture request method.
-  -o, --output <path|->   Write the response to a file or standard output.
+  -o, --output <path|->    Write the response to a file or standard output.
   --help                   Show this help.
 
 Capture options:

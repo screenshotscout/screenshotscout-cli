@@ -7,8 +7,6 @@ import {
   type ScreenshotScoutClientOptions,
 } from "@screenshotscout/sdk";
 
-import { CliUsageError } from "./cli-usage-error.js";
-
 export interface ScreenshotScoutEnvironment {
   readonly SCREENSHOTSCOUT_ACCESS_KEY?: string;
   readonly SCREENSHOTSCOUT_SECRET_KEY?: string;
@@ -30,6 +28,8 @@ export interface ScreenshotScoutSdkClient {
 export type ScreenshotScoutClientFactory = (
   options: ScreenshotScoutClientOptions,
 ) => ScreenshotScoutSdkClient;
+
+export type CaptureMethod = "get" | "post";
 
 const DEFAULT_CLIENT_FACTORY: ScreenshotScoutClientFactory = (options) =>
   new ScreenshotScoutClient(options);
@@ -55,24 +55,15 @@ export function captureWithScreenshotScoutClient(
   client: ScreenshotScoutSdkClient,
   targetUrl: string,
   captureOptions: CaptureOptions,
-  method: string | undefined,
+  method: CaptureMethod | undefined,
 ): Promise<CaptureResponse> {
   if (method === undefined) {
     return client.capture(targetUrl, captureOptions);
   }
 
   const captureRequestOptions: CaptureRequestOptions = {
-    method:
-      method === "get"
-        ? CaptureHttpMethod.GET
-        : method === "post"
-          ? CaptureHttpMethod.POST
-          : throwInvalidMethod(),
+    method: method === "get" ? CaptureHttpMethod.GET : CaptureHttpMethod.POST,
   };
 
   return client.capture(targetUrl, captureOptions, captureRequestOptions);
-}
-
-function throwInvalidMethod(): never {
-  throw new CliUsageError("Option '--method' must be 'get' or 'post'.");
 }

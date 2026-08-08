@@ -219,7 +219,7 @@ Failures write a concise message without a programming stack trace to standard e
 
 Each `capture` invocation makes one Screenshot Scout request and is subject to the account's quota and rate limits. `capture-url` makes no request while building the URL; requesting the generated URL later performs the capture. Quota and rate-limit failures are described in the [API error reference](https://screenshotscout.com/docs/errors).
 
-More inline-flag, options-file, POSIX shell, PowerShell, and CI examples are in the [repository examples](https://github.com/screenshotscout/screenshotscout-cli/tree/main/examples).
+More inline-flag, options-file, POSIX shell, PowerShell, and CI examples are in [`examples/`](examples/README.md).
 
 ## Troubleshooting
 

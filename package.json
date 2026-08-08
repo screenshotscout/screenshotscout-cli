@@ -4,6 +4,15 @@
   "private": true,
   "description": "Official command-line interface for the Screenshot Scout screenshot API.",
   "type": "module",
+  "bin": {
+    "screenshotscout": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
   "scripts": {
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "clean": "node -e \"const fs = require('node:fs'); fs.rmSync('dist', { force: true, recursive: true });\"",
@@ -16,6 +25,27 @@
   },
   "author": "Oleksii Velykyi",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/screenshotscout/screenshotscout-cli.git"
+  },
+  "homepage": "https://screenshotscout.com/docs/cli",
+  "bugs": {
+    "url": "https://github.com/screenshotscout/screenshotscout-cli/issues"
+  },
+  "keywords": [
+    "cli",
+    "command-line",
+    "screenshot",
+    "screenshot-api",
+    "screenshotscout",
+    "url-to-image",
+    "webpage-screenshot",
+    "website-screenshot"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=22"
   },

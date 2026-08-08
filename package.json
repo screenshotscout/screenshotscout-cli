@@ -1,0 +1,33 @@
+{
+  "name": "@screenshotscout/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Official command-line interface for the Screenshot Scout screenshot API.",
+  "type": "module",
+  "scripts": {
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "clean": "node -e \"const fs = require('node:fs'); fs.rmSync('dist', { force: true, recursive: true });\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "tsx --test",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "author": "Oleksii Velykyi",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@screenshotscout/sdk": "0.1.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.1",
+    "eslint": "10.8.1",
+    "prettier": "3.9.6",
+    "tsx": "4.23.11",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.66.0"
+  }
+}

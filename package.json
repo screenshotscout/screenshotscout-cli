@@ -1,6 +1,6 @@
 {
   "name": "@screenshotscout/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Official command-line interface for the Screenshot Scout screenshot API.",
   "type": "module",
   "bin": {

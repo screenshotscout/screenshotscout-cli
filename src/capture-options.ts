@@ -452,6 +452,13 @@ export const CAPTURE_OPTION_DEFINITIONS = {
     kind: "number",
     multiple: false,
   },
+  pdfPageRanges: {
+    sdkName: "pdfPageRanges",
+    apiName: "pdf_page_ranges",
+    cliName: "pdf-page-ranges",
+    kind: "string",
+    multiple: false,
+  },
   cache: {
     sdkName: "cache",
     apiName: "cache",

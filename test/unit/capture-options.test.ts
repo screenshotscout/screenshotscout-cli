@@ -63,6 +63,7 @@ const EXPECTED_SDK_NAMES = [
   "pdfMarginBottom",
   "pdfMarginLeft",
   "pdfScale",
+  "pdfPageRanges",
   "cache",
   "cacheTtl",
   "cacheKey",

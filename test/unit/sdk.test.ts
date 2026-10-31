@@ -13,6 +13,7 @@ import {
 import {
   captureWithScreenshotScoutClient,
   createScreenshotScoutClient,
+  isSecretKeyConfigured,
   type ScreenshotScoutClientFactory,
   type ScreenshotScoutSdkClient,
 } from "../../src/sdk.js";
@@ -128,6 +129,20 @@ void test("maps explicit lowercase get and post to the SDK request option", asyn
       { method: expected },
     ]);
   }
+});
+
+void test("reports a secret key whenever the client would receive one", () => {
+  assert.equal(isSecretKeyConfigured({}), false);
+  assert.equal(
+    isSecretKeyConfigured({ SCREENSHOTSCOUT_ACCESS_KEY: "access" }),
+    false,
+  );
+  assert.equal(
+    isSecretKeyConfigured({ SCREENSHOTSCOUT_SECRET_KEY: "secret" }),
+    true,
+  );
+  // An empty value still reaches the SDK, which rejects it, so it counts as set
+  assert.equal(isSecretKeyConfigured({ SCREENSHOTSCOUT_SECRET_KEY: "" }), true);
 });
 
 function createRecordingClient(): {

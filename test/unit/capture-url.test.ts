@@ -119,7 +119,7 @@ void test("uses the official SDK locally without calling its transport", async (
   assert.equal(buildCaptureUrlCalls, 1);
   assert.equal(transportCalls, 0);
   assert.deepEqual(standardOutput, [
-    "https://api.screenshotscout.com/v1/capture?access_key=placeholder-access-key&url=https%3A%2F%2Fexample.com%2Fa+path&delay=0&full_page=false\n",
+    "https://api.screenshotscout.com/v1/capture?access_key=placeholder-access-key&url=https%3A%2F%2Fexample.com%2Fa%20path&delay=0&full_page=false\n",
   ]);
 });
 

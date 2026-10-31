@@ -12,7 +12,6 @@ After installation, invoke it as `screenshotscout` in POSIX shells and PowerShel
 
 ```sh
 export SCREENSHOTSCOUT_ACCESS_KEY="YOUR_ACCESS_KEY"
-export SCREENSHOTSCOUT_SECRET_KEY="YOUR_SECRET_KEY"
 
 screenshotscout capture "https://example.com" \
   --format webp \
@@ -21,7 +20,7 @@ screenshotscout capture "https://example.com" \
   --output screenshot.webp
 ```
 
-Omit the `SCREENSHOTSCOUT_SECRET_KEY` assignment when you do not want signing and the API key does not require signed requests.
+For an API key that requires signed requests, also set `SCREENSHOTSCOUT_SECRET_KEY`, and add `--method get` to `capture`.
 
 Build a capture URL without making a capture request:
 
@@ -36,7 +35,6 @@ screenshotscout capture-url "https://example.com" \
 
 ```powershell
 $env:SCREENSHOTSCOUT_ACCESS_KEY = "YOUR_ACCESS_KEY"
-$env:SCREENSHOTSCOUT_SECRET_KEY = "YOUR_SECRET_KEY"
 
 screenshotscout capture "https://example.com" `
   --format webp `
@@ -45,7 +43,7 @@ screenshotscout capture "https://example.com" `
   --output screenshot.webp
 ```
 
-Omit the `SCREENSHOTSCOUT_SECRET_KEY` assignment when you do not want signing and the API key does not require signed requests.
+For an API key that requires signed requests, also set `SCREENSHOTSCOUT_SECRET_KEY`, and add `--method get` to `capture`.
 
 Build a capture URL without making a capture request:
 
@@ -58,7 +56,7 @@ screenshotscout capture-url "https://example.com" `
 
 ## CI setup and invocation
 
-Store the access key and optional secret key in your CI system's protected secret settings and expose them under the exact `SCREENSHOTSCOUT_ACCESS_KEY` and `SCREENSHOTSCOUT_SECRET_KEY` names.
+Store the access key and optional secret key in your CI system's protected secret settings and expose them under the exact `SCREENSHOTSCOUT_ACCESS_KEY` and `SCREENSHOTSCOUT_SECRET_KEY` names. If you set the secret key, add `--method get` to `capture`.
 
 For a clean runner, install a specific CLI version during setup. Replace `<version>` with the version you want:
 

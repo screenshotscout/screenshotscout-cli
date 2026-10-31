@@ -10,7 +10,7 @@ You need:
 
 - Node.js 22 or newer;
 - a Screenshot Scout [access key](https://screenshotscout.com/app/api-keys); and
-- the matching secret key only when you want automatic signing or the API key requires signed requests.
+- the matching secret key only when you want signed capture URLs or the API key requires signed requests.
 
 ## Install
 
@@ -55,7 +55,7 @@ $env:SCREENSHOTSCOUT_ACCESS_KEY = "YOUR_ACCESS_KEY"
 $env:SCREENSHOTSCOUT_SECRET_KEY = "YOUR_SECRET_KEY"
 ```
 
-`SCREENSHOTSCOUT_ACCESS_KEY` is required. `SCREENSHOTSCOUT_SECRET_KEY` is optional; omit its assignment for unsigned requests. When the secret key is configured, capture requests and generated capture URLs are signed automatically, while the secret key stays local.
+`SCREENSHOTSCOUT_ACCESS_KEY` is required. `SCREENSHOTSCOUT_SECRET_KEY` is optional; omit its assignment for unsigned requests. When the secret key is configured, generated capture URLs and captures sent with `--method get` are signed automatically, while the secret key stays local.
 
 ## Commands
 
@@ -77,7 +77,7 @@ screenshotscout capture "https://example.com" \
   --output screenshot.webp
 ```
 
-`capture` accepts `--method get` or `--method post`. You can omit `--method` unless you need to select one explicitly.
+`capture` accepts `--method get` or `--method post`. You can omit `--method` unless you need to select one explicitly, such as `--method get` for signed requests.
 
 ```sh
 screenshotscout capture "https://example.com" --method post --format webp --output screenshot.webp
@@ -225,7 +225,7 @@ More inline-flag, options-file, POSIX shell, PowerShell, and CI examples are in 
 
 - Run `screenshotscout --help` or `screenshotscout <command> --help` to check command syntax and current capture-option value shapes.
 - If the CLI reports that an access key is required, set `SCREENSHOTSCOUT_ACCESS_KEY` in the same process environment that runs the command.
-- If the API reports `signature_required`, set the matching `SCREENSHOTSCOUT_SECRET_KEY`; the CLI will sign the request automatically. See [Signed requests](https://screenshotscout.com/docs/signed-requests).
+- If the API reports `signature_required`, set the matching `SCREENSHOTSCOUT_SECRET_KEY` and add `--method get`. See [Signed requests](https://screenshotscout.com/docs/signed-requests).
 - If an option is rejected with exit status `2`, check whether it uses CLI `kebab-case`, whether a boolean uses bare or inline syntax, and whether a singleton flag was repeated.
 - If an options file is rejected, confirm that it is a JSON object using exact API `snake_case` names and JSON value types.
 - If a file write fails, confirm that its parent directory exists and is writable.

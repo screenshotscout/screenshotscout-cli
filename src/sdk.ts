@@ -50,6 +50,13 @@ export function createScreenshotScoutClient(
   return clientFactory(options);
 }
 
+/** Whether the environment gives the client a secret key, as createScreenshotScoutClient passes it. */
+export function isSecretKeyConfigured(
+  environment: ScreenshotScoutEnvironment = process.env,
+): boolean {
+  return environment.SCREENSHOTSCOUT_SECRET_KEY !== undefined;
+}
+
 /** Make one capture call with only an explicitly selected request method. */
 export function captureWithScreenshotScoutClient(
   client: ScreenshotScoutSdkClient,

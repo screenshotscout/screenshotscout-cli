@@ -234,6 +234,55 @@ void test("rejects URL-shape and singleton-control usage errors before an SDK ca
   }
 });
 
+void test("refuses POST before an SDK call when a secret key is set", async () => {
+  const cases = [["target"], ["target", "--method=post"]] as const;
+
+  for (const args of cases) {
+    const recordingClient = createRecordingClient(
+      binaryResponse(Uint8Array.of(1), "image/png"),
+    );
+
+    await assert.rejects(
+      runCaptureCommand(args, {
+        client: recordingClient.client,
+        secretKeyConfigured: true,
+        inputReader: UNEXPECTED_READER,
+        resultIo: createRecordingIo().io,
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof CliUsageError);
+        assert.equal(error.exitCode, 2);
+        assert.equal(
+          error.message,
+          "SCREENSHOTSCOUT_SECRET_KEY is set, and POST requests can't be signed. Add --method get, or unset SCREENSHOTSCOUT_SECRET_KEY to send an unsigned POST request.",
+        );
+        return true;
+      },
+    );
+    assert.equal(recordingClient.calls.length, 0);
+  }
+});
+
+void test("sends GET to the SDK when a secret key is set and --method get is given", async () => {
+  const returnedBytes = Uint8Array.of(4, 2);
+  const recordingClient = createRecordingClient(
+    binaryResponse(returnedBytes, "image/png"),
+  );
+  const recordingIo = createRecordingIo();
+
+  await runCaptureCommand(["target", "--method=get", "-o", "-"], {
+    client: recordingClient.client,
+    secretKeyConfigured: true,
+    inputReader: UNEXPECTED_READER,
+    resultIo: recordingIo.io,
+  });
+
+  assert.deepEqual(recordingClient.calls, [
+    ["target", {}, { method: CaptureHttpMethod.GET }],
+  ]);
+  assert.deepEqual(recordingIo.standardOutput, [returnedBytes]);
+});
+
 function createRecordingClient(response: CaptureResponse): {
   readonly calls: RecordedCaptureCall[];
   readonly client: ScreenshotScoutSdkClient;

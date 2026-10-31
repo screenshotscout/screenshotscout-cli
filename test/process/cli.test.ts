@@ -24,7 +24,7 @@ void test("compiled executable prints root help, command help, and version", asy
     { args: ["--help"], output: ROOT_HELP },
     { args: ["capture", "--help"], output: captureCommandHelp() },
     { args: ["capture-url", "--help"], output: captureUrlCommandHelp() },
-    { args: ["--version"], output: "0.2.0\n" },
+    { args: ["--version"], output: "0.3.0\n" },
   ] as const;
 
   for (const { args, output } of cases) {
@@ -114,7 +114,7 @@ void test("compiled capture-url returns the unchanged SDK URL plus one newline",
   assert.equal(result.code, 0);
   assert.equal(
     result.standardOutput.toString("utf8"),
-    "https://api.screenshotscout.com/v1/capture?access_key=placeholder-access-key&url=https%3A%2F%2Fexample.com%2Fa+path&delay=0&full_page=false\n",
+    "https://api.screenshotscout.com/v1/capture?access_key=placeholder-access-key&url=https%3A%2F%2Fexample.com%2Fa%20path&delay=0&full_page=false\n",
   );
   assert.deepEqual(result.standardError, Buffer.alloc(0));
 });
@@ -148,6 +148,21 @@ void test("compiled executable validates --method before SDK credentials", async
   assert.equal(
     result.standardError.toString("utf8"),
     "Option '--method' must be 'get' or 'post'.\n",
+  );
+  assertNoProgrammingDump(result.standardError);
+});
+
+void test("compiled executable refuses an unsignable POST when a secret key is set", async () => {
+  const result = await runCliProcess(["capture", "target"], {
+    accessKey: "placeholder-access-key",
+    secretKey: "placeholder-secret-key",
+  });
+
+  assert.equal(result.code, 2);
+  assert.deepEqual(result.standardOutput, Buffer.alloc(0));
+  assert.equal(
+    result.standardError.toString("utf8"),
+    "SCREENSHOTSCOUT_SECRET_KEY is set, and POST requests can't be signed. Add --method get, or unset SCREENSHOTSCOUT_SECRET_KEY to send an unsigned POST request.\n",
   );
   assertNoProgrammingDump(result.standardError);
 });
@@ -263,6 +278,7 @@ interface MockResponse {
 
 interface CliProcessOptions {
   readonly accessKey?: string;
+  readonly secretKey?: string;
   readonly currentDirectory?: string;
   readonly mockResponse?: MockResponse;
   readonly standardInput?: string | Uint8Array;
@@ -296,6 +312,9 @@ function runCliProcess(
 
     if (options.accessKey !== undefined) {
       environment.SCREENSHOTSCOUT_ACCESS_KEY = options.accessKey;
+    }
+    if (options.secretKey !== undefined) {
+      environment.SCREENSHOTSCOUT_SECRET_KEY = options.secretKey;
     }
     if (options.mockResponse !== undefined) {
       environment.CLI_TEST_RESPONSE_BASE64 = Buffer.from(

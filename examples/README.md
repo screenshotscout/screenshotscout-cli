@@ -20,7 +20,7 @@ screenshotscout capture "https://example.com" \
   --output screenshot.webp
 ```
 
-For an API key that requires signed requests, also set `SCREENSHOTSCOUT_SECRET_KEY`, and add `--method get` to `capture`.
+For an API key that requires signed requests, also set `SCREENSHOTSCOUT_SECRET_KEY`.
 
 Build a capture URL without making a capture request:
 
@@ -43,7 +43,7 @@ screenshotscout capture "https://example.com" `
   --output screenshot.webp
 ```
 
-For an API key that requires signed requests, also set `SCREENSHOTSCOUT_SECRET_KEY`, and add `--method get` to `capture`.
+For an API key that requires signed requests, also set `SCREENSHOTSCOUT_SECRET_KEY`.
 
 Build a capture URL without making a capture request:
 
@@ -56,7 +56,7 @@ screenshotscout capture-url "https://example.com" `
 
 ## CI setup and invocation
 
-Store the access key and optional secret key in your CI system's protected secret settings and expose them under the exact `SCREENSHOTSCOUT_ACCESS_KEY` and `SCREENSHOTSCOUT_SECRET_KEY` names. If you set the secret key, add `--method get` to `capture`.
+Store the access key and optional secret key in your CI system's protected secret settings and expose them under the exact `SCREENSHOTSCOUT_ACCESS_KEY` and `SCREENSHOTSCOUT_SECRET_KEY` names.
 
 For a clean runner, install a specific CLI version during setup. Replace `<version>` with the version you want:
 

@@ -3,20 +3,20 @@ import test from "node:test";
 
 import {
   CaptureHttpMethod,
-  ScreenshotScoutConfigurationError,
   type BinaryCaptureResponse,
   type CaptureOptions,
   type CaptureRequestOptions,
-  type ScreenshotScoutClientOptions,
 } from "@screenshotscout/sdk";
 
 import {
   captureWithScreenshotScoutClient,
   createScreenshotScoutClient,
-  isSecretKeyConfigured,
-  type ScreenshotScoutClientFactory,
   type ScreenshotScoutSdkClient,
 } from "../../src/sdk.js";
+
+// Keys set in the developer's own environment must not reach these tests.
+delete process.env.SCREENSHOTSCOUT_ACCESS_KEY;
+delete process.env.SCREENSHOTSCOUT_SECRET_KEY;
 
 type RecordedCaptureCall = readonly [
   targetUrl: string,
@@ -37,54 +37,40 @@ const CAPTURE_RESPONSE: BinaryCaptureResponse = {
   },
 };
 
-void test("constructs the SDK client with exact environment credential values", () => {
+void test("constructs the client with the injected factory", () => {
   const client = createRecordingClient().client;
-  const constructorCalls: ScreenshotScoutClientOptions[] = [];
-  const clientFactory: ScreenshotScoutClientFactory = (options) => {
-    constructorCalls.push(options);
-    return client;
-  };
 
-  const created = createScreenshotScoutClient(
-    {
-      SCREENSHOTSCOUT_ACCESS_KEY: "placeholder-access-key+/=",
-      SCREENSHOTSCOUT_SECRET_KEY: " placeholder secret retained unchanged ",
-    },
-    clientFactory,
+  assert.equal(
+    createScreenshotScoutClient(() => client),
+    client,
   );
-
-  assert.equal(created, client);
-  assert.deepEqual(constructorCalls, [
-    {
-      accessKey: "placeholder-access-key+/=",
-      secretKey: " placeholder secret retained unchanged ",
-    },
-  ]);
 });
 
-void test("omits an absent optional secret and leaves access-key validation to the SDK", () => {
-  const client = createRecordingClient().client;
-  const constructorCalls: ScreenshotScoutClientOptions[] = [];
-  const clientFactory: ScreenshotScoutClientFactory = (options) => {
-    constructorCalls.push(options);
-    return client;
-  };
+void test("the default client takes both keys from the environment", () => {
+  process.env.SCREENSHOTSCOUT_ACCESS_KEY = "placeholder-access-key";
+  process.env.SCREENSHOTSCOUT_SECRET_KEY = "placeholder-secret-key";
+  try {
+    const captureUrl = new URL(
+      createScreenshotScoutClient().buildCaptureUrl("https://example.com"),
+    );
 
-  createScreenshotScoutClient(
-    { SCREENSHOTSCOUT_ACCESS_KEY: "placeholder-access-key" },
-    clientFactory,
-  );
-  createScreenshotScoutClient({}, clientFactory);
+    assert.equal(
+      captureUrl.searchParams.get("access_key"),
+      "placeholder-access-key",
+    );
+    assert.equal(captureUrl.searchParams.has("signature"), true);
+  } finally {
+    delete process.env.SCREENSHOTSCOUT_ACCESS_KEY;
+    delete process.env.SCREENSHOTSCOUT_SECRET_KEY;
+  }
+});
 
-  assert.deepEqual(constructorCalls, [
-    { accessKey: "placeholder-access-key" },
-    { accessKey: undefined },
-  ]);
-  assert.equal(Object.hasOwn(constructorCalls[0] ?? {}, "secretKey"), false);
-  assert.throws(
-    () => createScreenshotScoutClient({}),
-    ScreenshotScoutConfigurationError,
-  );
+void test("the default client names the variable when the access key is missing", () => {
+  assert.throws(() => createScreenshotScoutClient(), {
+    name: "ScreenshotScoutConfigurationError",
+    message:
+      "A non-blank Screenshot Scout access key is required. Pass one, or set SCREENSHOTSCOUT_ACCESS_KEY.",
+  });
 });
 
 void test("passes no capture request options when method is omitted", async () => {
@@ -129,20 +115,6 @@ void test("maps explicit lowercase get and post to the SDK request option", asyn
       { method: expected },
     ]);
   }
-});
-
-void test("reports a secret key whenever the client would receive one", () => {
-  assert.equal(isSecretKeyConfigured({}), false);
-  assert.equal(
-    isSecretKeyConfigured({ SCREENSHOTSCOUT_ACCESS_KEY: "access" }),
-    false,
-  );
-  assert.equal(
-    isSecretKeyConfigured({ SCREENSHOTSCOUT_SECRET_KEY: "secret" }),
-    true,
-  );
-  // An empty value still reaches the SDK, which rejects it, so it counts as set
-  assert.equal(isSecretKeyConfigured({ SCREENSHOTSCOUT_SECRET_KEY: "" }), true);
 });
 
 function createRecordingClient(): {

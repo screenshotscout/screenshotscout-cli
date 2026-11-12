@@ -4,13 +4,7 @@ import {
   type CaptureOptions,
   type CaptureRequestOptions,
   type CaptureResponse,
-  type ScreenshotScoutClientOptions,
 } from "@screenshotscout/sdk";
-
-export interface ScreenshotScoutEnvironment {
-  readonly SCREENSHOTSCOUT_ACCESS_KEY?: string;
-  readonly SCREENSHOTSCOUT_SECRET_KEY?: string;
-}
 
 /** The public SDK methods used by the two CLI commands. */
 export interface ScreenshotScoutSdkClient {
@@ -25,39 +19,22 @@ export interface ScreenshotScoutSdkClient {
   ): string;
 }
 
-export type ScreenshotScoutClientFactory = (
-  options: ScreenshotScoutClientOptions,
-) => ScreenshotScoutSdkClient;
+export type ScreenshotScoutClientFactory = () => ScreenshotScoutSdkClient;
 
 export type CaptureMethod = "get" | "post";
 
-const DEFAULT_CLIENT_FACTORY: ScreenshotScoutClientFactory = (options) =>
-  new ScreenshotScoutClient(options);
+// The SDK reads SCREENSHOTSCOUT_ACCESS_KEY and SCREENSHOTSCOUT_SECRET_KEY itself.
+const DEFAULT_CLIENT_FACTORY: ScreenshotScoutClientFactory = () =>
+  new ScreenshotScoutClient();
 
-/** Construct the official SDK client from the two approved environment names. */
+/** Construct the official SDK client, which takes its keys from the environment. */
 export function createScreenshotScoutClient(
-  environment: ScreenshotScoutEnvironment = process.env,
   clientFactory: ScreenshotScoutClientFactory = DEFAULT_CLIENT_FACTORY,
 ): ScreenshotScoutSdkClient {
-  const accessKey = environment.SCREENSHOTSCOUT_ACCESS_KEY;
-  const secretKey = environment.SCREENSHOTSCOUT_SECRET_KEY;
-  const options: ScreenshotScoutClientOptions = {
-    // Missing and invalid values deliberately reach the SDK's own validation.
-    accessKey: accessKey!,
-    ...(secretKey === undefined ? {} : { secretKey }),
-  };
-
-  return clientFactory(options);
+  return clientFactory();
 }
 
-/** Whether the environment gives the client a secret key, as createScreenshotScoutClient passes it. */
-export function isSecretKeyConfigured(
-  environment: ScreenshotScoutEnvironment = process.env,
-): boolean {
-  return environment.SCREENSHOTSCOUT_SECRET_KEY !== undefined;
-}
-
-/** Make one capture call with only an explicitly selected request method. */
+/** Make one capture call with only an explicitly selected request method; the SDK picks the default. */
 export function captureWithScreenshotScoutClient(
   client: ScreenshotScoutSdkClient,
   targetUrl: string,

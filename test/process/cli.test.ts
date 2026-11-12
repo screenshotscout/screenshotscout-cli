@@ -24,7 +24,7 @@ void test("compiled executable prints root help, command help, and version", asy
     { args: ["--help"], output: ROOT_HELP },
     { args: ["capture", "--help"], output: captureCommandHelp() },
     { args: ["capture-url", "--help"], output: captureUrlCommandHelp() },
-    { args: ["--version"], output: "0.3.0\n" },
+    { args: ["--version"], output: "0.4.0\n" },
   ] as const;
 
   for (const { args, output } of cases) {
@@ -152,19 +152,47 @@ void test("compiled executable validates --method before SDK credentials", async
   assertNoProgrammingDump(result.standardError);
 });
 
-void test("compiled executable refuses an unsignable POST when a secret key is set", async () => {
-  const result = await runCliProcess(["capture", "target"], {
+void test("compiled capture sends a signed GET when a secret key is set and --method is omitted", async () => {
+  const result = await runCliProcess(
+    ["capture", "https://example.com/", "--output=-"],
+    {
+      accessKey: "placeholder-access-key",
+      secretKey: "placeholder-secret-key",
+      echoRequest: true,
+    },
+  );
+
+  assert.equal(result.code, 0);
+  const [method, url] = result.standardOutput.toString("utf8").split(" ");
+  assert.equal(method, "GET");
+  assert.equal(new URL(url ?? "").searchParams.has("signature"), true);
+  assert.deepEqual(result.standardError, Buffer.alloc(0));
+});
+
+void test("compiled capture refuses an explicit POST when a secret key is set", async () => {
+  const result = await runCliProcess(["capture", "target", "--method=post"], {
     accessKey: "placeholder-access-key",
     secretKey: "placeholder-secret-key",
   });
 
-  assert.equal(result.code, 2);
+  assert.equal(result.code, 1);
   assert.deepEqual(result.standardOutput, Buffer.alloc(0));
   assert.equal(
     result.standardError.toString("utf8"),
-    "SCREENSHOTSCOUT_SECRET_KEY is set, and POST requests can't be signed. Add --method get, or unset SCREENSHOTSCOUT_SECRET_KEY to send an unsigned POST request.\n",
+    "POST requests can't be signed. This client has a secret key from SCREENSHOTSCOUT_SECRET_KEY: send this capture with method GET, or use a client without a secret key and an API key that doesn't require signed requests.\n",
   );
   assertNoProgrammingDump(result.standardError);
+});
+
+void test("compiled capture-url treats an empty secret key as unset", async () => {
+  const result = await runCliProcess(["capture-url", "https://example.com/"], {
+    accessKey: "placeholder-access-key",
+    secretKey: "",
+  });
+
+  assert.equal(result.code, 0);
+  const captureUrl = new URL(result.standardOutput.toString("utf8").trim());
+  assert.equal(captureUrl.searchParams.has("signature"), false);
 });
 
 void test("compiled executable classifies malformed options JSON as usage", async () => {
@@ -188,7 +216,7 @@ void test("compiled executable prints only a concise SDK credential failure", as
   assert.deepEqual(result.standardOutput, Buffer.alloc(0));
   assert.equal(
     result.standardError.toString("utf8"),
-    "A non-blank Screenshot Scout access key is required.\n",
+    "A non-blank Screenshot Scout access key is required. Pass one, or set SCREENSHOTSCOUT_ACCESS_KEY.\n",
   );
   assertNoProgrammingDump(result.standardError);
 });
@@ -280,6 +308,7 @@ interface CliProcessOptions {
   readonly accessKey?: string;
   readonly secretKey?: string;
   readonly currentDirectory?: string;
+  readonly echoRequest?: boolean;
   readonly mockResponse?: MockResponse;
   readonly standardInput?: string | Uint8Array;
   readonly transportFailure?: string;
@@ -298,7 +327,8 @@ function runCliProcess(
   return new Promise((resolve, reject) => {
     const usesMockFetch =
       options.mockResponse !== undefined ||
-      options.transportFailure !== undefined;
+      options.transportFailure !== undefined ||
+      options.echoRequest === true;
     const nodeArguments = [
       ...(usesMockFetch
         ? [`--import=${TSX_IMPORT}`, `--import=${MOCK_FETCH_IMPORT}`]
@@ -315,6 +345,9 @@ function runCliProcess(
     }
     if (options.secretKey !== undefined) {
       environment.SCREENSHOTSCOUT_SECRET_KEY = options.secretKey;
+    }
+    if (options.echoRequest === true) {
+      environment.CLI_TEST_ECHO_REQUEST = "1";
     }
     if (options.mockResponse !== undefined) {
       environment.CLI_TEST_RESPONSE_BASE64 = Buffer.from(

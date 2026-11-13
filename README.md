@@ -57,6 +57,8 @@ $env:SCREENSHOTSCOUT_SECRET_KEY = "YOUR_SECRET_KEY"
 
 `SCREENSHOTSCOUT_ACCESS_KEY` is required. `SCREENSHOTSCOUT_SECRET_KEY` is optional; omit its assignment for unsigned requests. When the secret key is configured, generated capture URLs and captures are signed automatically, while the secret key stays local.
 
+To send requests to another server, such as your own proxy or a mock server, set `SCREENSHOTSCOUT_BASE_URL` to its base URL. Captures then go to that URL plus `/v1/capture`, and generated capture URLs point there too.
+
 ## Commands
 
 ### Capture a URL

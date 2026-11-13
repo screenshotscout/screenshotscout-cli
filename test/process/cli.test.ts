@@ -24,7 +24,7 @@ void test("compiled executable prints root help, command help, and version", asy
     { args: ["--help"], output: ROOT_HELP },
     { args: ["capture", "--help"], output: captureCommandHelp() },
     { args: ["capture-url", "--help"], output: captureUrlCommandHelp() },
-    { args: ["--version"], output: "0.4.0\n" },
+    { args: ["--version"], output: "0.5.0\n" },
   ] as const;
 
   for (const { args, output } of cases) {
@@ -117,6 +117,54 @@ void test("compiled capture-url returns the unchanged SDK URL plus one newline",
     "https://api.screenshotscout.com/v1/capture?access_key=placeholder-access-key&url=https%3A%2F%2Fexample.com%2Fa%20path&delay=0&full_page=false\n",
   );
   assert.deepEqual(result.standardError, Buffer.alloc(0));
+});
+
+void test("compiled capture-url builds the URL on SCREENSHOTSCOUT_BASE_URL", async () => {
+  const result = await runCliProcess(["capture-url", "https://example.com/"], {
+    accessKey: "placeholder-access-key",
+    baseUrl: "http://localhost:8787/",
+  });
+
+  assert.equal(result.code, 0);
+  assert.equal(
+    result.standardOutput.toString("utf8"),
+    "http://localhost:8787/v1/capture?access_key=placeholder-access-key&url=https%3A%2F%2Fexample.com%2F\n",
+  );
+  assert.deepEqual(result.standardError, Buffer.alloc(0));
+});
+
+void test("compiled capture sends the request to SCREENSHOTSCOUT_BASE_URL", async () => {
+  const result = await runCliProcess(
+    ["capture", "https://example.com/", "--output=-"],
+    {
+      accessKey: "placeholder-access-key",
+      baseUrl: "http://localhost:8787",
+      echoRequest: true,
+    },
+  );
+
+  assert.equal(result.code, 0);
+  assert.equal(
+    result.standardOutput.toString("utf8"),
+    "POST http://localhost:8787/v1/capture",
+  );
+  assert.deepEqual(result.standardError, Buffer.alloc(0));
+});
+
+void test("compiled capture names SCREENSHOTSCOUT_BASE_URL in a transport failure", async () => {
+  const result = await runCliProcess(["capture", "target", "--output=-"], {
+    accessKey: "placeholder-access-key",
+    baseUrl: "http://localhost:8787",
+    transportFailure: "inner transport detail must stay hidden",
+  });
+
+  assert.equal(result.code, 1);
+  assert.deepEqual(result.standardOutput, Buffer.alloc(0));
+  assert.equal(
+    result.standardError.toString("utf8"),
+    "Screenshot Scout request failed before an HTTP response body was received. The base URL comes from SCREENSHOTSCOUT_BASE_URL.\n",
+  );
+  assertNoProgrammingDump(result.standardError);
 });
 
 void test("compiled executable uses exit 2 for missing, unknown, alias, and malformed input", async () => {
@@ -307,6 +355,7 @@ interface MockResponse {
 interface CliProcessOptions {
   readonly accessKey?: string;
   readonly secretKey?: string;
+  readonly baseUrl?: string;
   readonly currentDirectory?: string;
   readonly echoRequest?: boolean;
   readonly mockResponse?: MockResponse;
@@ -339,12 +388,16 @@ function runCliProcess(
     const environment: NodeJS.ProcessEnv = { ...process.env };
     delete environment.SCREENSHOTSCOUT_ACCESS_KEY;
     delete environment.SCREENSHOTSCOUT_SECRET_KEY;
+    delete environment.SCREENSHOTSCOUT_BASE_URL;
 
     if (options.accessKey !== undefined) {
       environment.SCREENSHOTSCOUT_ACCESS_KEY = options.accessKey;
     }
     if (options.secretKey !== undefined) {
       environment.SCREENSHOTSCOUT_SECRET_KEY = options.secretKey;
+    }
+    if (options.baseUrl !== undefined) {
+      environment.SCREENSHOTSCOUT_BASE_URL = options.baseUrl;
     }
     if (options.echoRequest === true) {
       environment.CLI_TEST_ECHO_REQUEST = "1";

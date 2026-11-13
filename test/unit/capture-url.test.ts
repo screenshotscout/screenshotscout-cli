@@ -11,6 +11,9 @@ import { CliUsageError } from "../../src/cli-usage-error.js";
 import type { CaptureOptionsInputReader } from "../../src/input.js";
 import type { ScreenshotScoutSdkClient } from "../../src/sdk.js";
 
+// A base URL set in the developer's own environment must not reach these tests.
+delete process.env.SCREENSHOTSCOUT_BASE_URL;
+
 type RecordedBuildCaptureUrlCall = readonly [
   targetUrl: string,
   captureOptions?: CaptureOptions | null,

@@ -14,9 +14,10 @@ import {
   type ScreenshotScoutSdkClient,
 } from "../../src/sdk.js";
 
-// Keys set in the developer's own environment must not reach these tests.
+// Variables set in the developer's own environment must not reach these tests.
 delete process.env.SCREENSHOTSCOUT_ACCESS_KEY;
 delete process.env.SCREENSHOTSCOUT_SECRET_KEY;
+delete process.env.SCREENSHOTSCOUT_BASE_URL;
 
 type RecordedCaptureCall = readonly [
   targetUrl: string,

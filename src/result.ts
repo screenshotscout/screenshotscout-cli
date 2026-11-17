@@ -24,9 +24,12 @@ export async function writeCaptureResult(
   const bytes =
     response.kind === "binary" ? response.bytes : response.rawResponse.body;
 
+  // JSON and Markdown are text, so without an output path they go to standard output.
   if (
     outputPath === "-" ||
-    (outputPath === undefined && response.kind === "json")
+    (outputPath === undefined &&
+      (response.kind === "json" ||
+        mediaTypeOf(response.rawResponse.contentType) === "text/markdown"))
   ) {
     await io.writeStandardOutput(bytes);
     return;
@@ -43,9 +46,7 @@ export async function writeCaptureResult(
 
 /** Map only a returned response Content-Type to an automatic file extension. */
 export function captureFileExtension(contentType: string | null): string {
-  const mediaType = contentType?.split(";", 1)[0]?.trim().toLowerCase();
-
-  switch (mediaType) {
+  switch (mediaTypeOf(contentType)) {
     case "image/png":
       return ".png";
     case "image/jpeg":
@@ -61,6 +62,10 @@ export function captureFileExtension(contentType: string | null): string {
     default:
       return ".bin";
   }
+}
+
+function mediaTypeOf(contentType: string | null): string | undefined {
+  return contentType?.split(";", 1)[0]?.trim().toLowerCase();
 }
 
 function writeStandardOutput(bytes: Uint8Array): Promise<void> {

@@ -177,9 +177,10 @@ The CLI writes response data unchanged, without adding labels or summaries.
 | API response        | No `--output`                                   | `--output <path>`                       | `--output -`                                    |
 | ------------------- | ----------------------------------------------- | --------------------------------------- | ----------------------------------------------- |
 | Binary image or PDF | Saves `screenshot.<extension>`                  | Saves exact response bytes to the path  | Writes exact response bytes to standard output  |
+| Markdown            | Writes the Markdown to standard output          | Saves the Markdown to the path          | Writes the Markdown to standard output          |
 | JSON                | Writes the raw JSON response to standard output | Saves the raw JSON response to the path | Writes the raw JSON response to standard output |
 
-Binary and JSON writes to standard output add no line break.
+Binary, Markdown and JSON writes to standard output add no line break.
 
 For an automatically named binary response, the extension comes only from the actual response `Content-Type`: `.png`, `.jpg`, `.webp`, `.gif`, `.tiff`, or `.pdf`. A missing or unrecognized content type uses `.bin`; a requested format does not determine the automatic filename.
 

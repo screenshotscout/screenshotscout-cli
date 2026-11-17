@@ -24,7 +24,7 @@ void test("compiled executable prints root help, command help, and version", asy
     { args: ["--help"], output: ROOT_HELP },
     { args: ["capture", "--help"], output: captureCommandHelp() },
     { args: ["capture-url", "--help"], output: captureUrlCommandHelp() },
-    { args: ["--version"], output: "0.5.0\n" },
+    { args: ["--version"], output: "0.6.0\n" },
   ] as const;
 
   for (const { args, output } of cases) {

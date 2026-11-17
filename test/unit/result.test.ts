@@ -58,6 +58,31 @@ void test("writes raw JSON bytes to an explicit output path", async () => {
   assert.deepEqual(recording.standardOutput, []);
 });
 
+void test("displays Markdown on standard output unless an output path is given", async () => {
+  const bytes = new TextEncoder().encode("# Привет\n\nText.\n");
+
+  for (const outputPath of [undefined, "-"] as const) {
+    const recording = createRecordingIo();
+    await writeCaptureResult(
+      binaryResponse(bytes, "text/markdown; charset=utf-8"),
+      outputPath,
+      recording.io,
+    );
+
+    assert.deepEqual(recording.standardOutput, [bytes]);
+    assert.deepEqual(recording.files, []);
+  }
+
+  const explicit = createRecordingIo();
+  await writeCaptureResult(
+    binaryResponse(bytes, "TEXT/MARKDOWN"),
+    "page.md",
+    explicit.io,
+  );
+  assert.deepEqual(explicit.files, [{ path: "page.md", bytes }]);
+  assert.deepEqual(explicit.standardOutput, []);
+});
+
 void test("maps every approved Content-Type and uses .bin for missing or unknown values", async () => {
   const cases = [
     ["image/png", ".png"],

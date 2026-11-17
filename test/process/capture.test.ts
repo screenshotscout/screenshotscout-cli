@@ -40,6 +40,19 @@ void test("process display writes exact raw JSON bytes without a newline", async
   assert.deepEqual(result.standardError, Buffer.alloc(0));
 });
 
+void test("process display writes Markdown to standard output without an output path", async () => {
+  const bytes = Buffer.from("# Привет\n\nText.\n");
+  const result = await runCaptureProcess(["target", "--format=md"], {
+    kind: "binary",
+    bytes,
+    contentType: "text/markdown; charset=utf-8",
+  });
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(result.standardOutput, bytes);
+  assert.deepEqual(result.standardError, Buffer.alloc(0));
+});
+
 void test("process file output silently overwrites automatic and explicit paths", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "screenshotscout-process-"));
   context.after(() => rm(directory, { force: true, recursive: true }));

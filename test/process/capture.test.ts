@@ -53,6 +53,21 @@ void test("process display writes Markdown to standard output without an output 
   assert.deepEqual(result.standardError, Buffer.alloc(0));
 });
 
+void test("process display writes HTML to standard output without an output path", async () => {
+  const bytes = Buffer.from(
+    "<!DOCTYPE html><html><body><p>Привет</p></body></html>",
+  );
+  const result = await runCaptureProcess(["target", "--format=html"], {
+    kind: "binary",
+    bytes,
+    contentType: "text/html; charset=utf-8",
+  });
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(result.standardOutput, bytes);
+  assert.deepEqual(result.standardError, Buffer.alloc(0));
+});
+
 void test("process file output silently overwrites automatic and explicit paths", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "screenshotscout-process-"));
   context.after(() => rm(directory, { force: true, recursive: true }));

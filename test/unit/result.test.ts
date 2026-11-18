@@ -83,6 +83,33 @@ void test("displays Markdown on standard output unless an output path is given",
   assert.deepEqual(explicit.standardOutput, []);
 });
 
+void test("displays HTML on standard output unless an output path is given", async () => {
+  const bytes = new TextEncoder().encode(
+    "<!DOCTYPE html><html><body><p>Привет</p></body></html>",
+  );
+
+  for (const outputPath of [undefined, "-"] as const) {
+    const recording = createRecordingIo();
+    await writeCaptureResult(
+      binaryResponse(bytes, "text/html; charset=utf-8"),
+      outputPath,
+      recording.io,
+    );
+
+    assert.deepEqual(recording.standardOutput, [bytes]);
+    assert.deepEqual(recording.files, []);
+  }
+
+  const explicit = createRecordingIo();
+  await writeCaptureResult(
+    binaryResponse(bytes, "TEXT/HTML"),
+    "page.html",
+    explicit.io,
+  );
+  assert.deepEqual(explicit.files, [{ path: "page.html", bytes }]);
+  assert.deepEqual(explicit.standardOutput, []);
+});
+
 void test("maps every approved Content-Type and uses .bin for missing or unknown values", async () => {
   const cases = [
     ["image/png", ".png"],

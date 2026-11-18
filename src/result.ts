@@ -24,12 +24,14 @@ export async function writeCaptureResult(
   const bytes =
     response.kind === "binary" ? response.bytes : response.rawResponse.body;
 
-  // JSON and Markdown are text, so without an output path they go to standard output.
+  // JSON, Markdown and HTML are text, so without an output path they go to standard output.
+  const mediaType = mediaTypeOf(response.rawResponse.contentType);
   if (
     outputPath === "-" ||
     (outputPath === undefined &&
       (response.kind === "json" ||
-        mediaTypeOf(response.rawResponse.contentType) === "text/markdown"))
+        mediaType === "text/markdown" ||
+        mediaType === "text/html"))
   ) {
     await io.writeStandardOutput(bytes);
     return;

@@ -35,13 +35,15 @@ void test("passes the exact URL and merged options to one SDK call and writes it
     readFile: (path) => {
       readPath = path;
       return Promise.resolve(
-        JSON.stringify({
-          format: "jpeg",
-          delay: 10,
-          full_page: true,
-          headers: ["file: first", "file: second"],
-          cache_key: "retained-from-file",
-        }),
+        new TextEncoder().encode(
+          JSON.stringify({
+            format: "jpeg",
+            delay: 10,
+            full_page: true,
+            headers: ["file: first", "file: second"],
+            cache_key: "retained-from-file",
+          }),
+        ),
       );
     },
     readStdin: () =>
@@ -100,6 +102,9 @@ void test("uses the official SDK locally without calling its transport", async (
     capture() {
       throw new Error("capture must not be called by capture-url.");
     },
+    captureFromHtml() {
+      throw new Error("captureFromHtml must not be called by capture-url.");
+    },
     buildCaptureUrl(targetUrl, captureOptions) {
       buildCaptureUrlCalls += 1;
       return officialClient.buildCaptureUrl(targetUrl, captureOptions);
@@ -133,6 +138,8 @@ void test("rejects invalid command shape and capture-only controls before an SDK
     ["target", "--method=get"],
     ["target", "--output", "result.png"],
     ["target", "-o", "result.png"],
+    ["target", "--html", "page.html"],
+    ["--html=page.html"],
   ] as const;
 
   for (const args of cases) {
@@ -166,6 +173,9 @@ void test("propagates an SDK failure unchanged and writes nothing", async () => 
   const client: ScreenshotScoutSdkClient = {
     capture() {
       throw new Error("capture must not be called by capture-url.");
+    },
+    captureFromHtml() {
+      throw new Error("captureFromHtml must not be called by capture-url.");
     },
     buildCaptureUrl() {
       buildCaptureUrlCalls += 1;
@@ -201,6 +211,10 @@ function createRecordingClient(returnedUrl: string): {
     capture() {
       captureCalls += 1;
       throw new Error("capture must not be called by capture-url.");
+    },
+    captureFromHtml() {
+      captureCalls += 1;
+      throw new Error("captureFromHtml must not be called by capture-url.");
     },
     buildCaptureUrl(...args: RecordedBuildCaptureUrlCall) {
       buildCaptureUrlCalls.push(args);

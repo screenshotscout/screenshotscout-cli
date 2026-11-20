@@ -13,6 +13,10 @@ export interface ScreenshotScoutSdkClient {
     captureOptions?: CaptureOptions | null,
     captureRequestOptions?: CaptureRequestOptions | null,
   ): Promise<CaptureResponse>;
+  captureFromHtml(
+    html: string,
+    captureOptions?: CaptureOptions | null,
+  ): Promise<CaptureResponse>;
   buildCaptureUrl(
     targetUrl: string,
     captureOptions?: CaptureOptions | null,

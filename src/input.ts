@@ -11,6 +11,7 @@ import { CliUsageError } from "./cli-usage-error.js";
 import type { CaptureMethod } from "./sdk.js";
 
 const OPTIONS_INPUT_NAME = "options";
+const HTML_INPUT_NAME = "html";
 const METHOD_INPUT_NAME = "method";
 const OUTPUT_INPUT_NAME = "output";
 const OMIT_VALUE = Symbol("omit-value");
@@ -21,9 +22,10 @@ interface ParseOptionConfiguration {
   readonly short?: string;
 }
 
+/** Reads the bytes of an --options or --html input from a file or standard input. */
 export interface CaptureOptionsInputReader {
-  readonly readFile: (path: string) => Promise<string>;
-  readonly readStdin: () => Promise<string>;
+  readonly readFile: (path: string) => Promise<Uint8Array>;
+  readonly readStdin: () => Promise<Uint8Array>;
 }
 
 export interface ParsedCaptureInput {
@@ -31,12 +33,18 @@ export interface ParsedCaptureInput {
   readonly positionals: readonly string[];
 }
 
-export interface ParsedCaptureCommandInput {
+interface ParsedCaptureCommandControls {
   readonly captureOptions: CaptureOptions;
   readonly method: CaptureMethod | undefined;
   readonly outputPath: string | undefined;
-  readonly targetUrl: string;
 }
+
+/** The capture command's input: one URL, or the HTML document that --html read. */
+export type ParsedCaptureCommandInput = ParsedCaptureCommandControls &
+  (
+    | { readonly html?: undefined; readonly targetUrl: string }
+    | { readonly html: string; readonly targetUrl?: undefined }
+  );
 
 export interface ParsedCaptureUrlCommandInput {
   readonly captureOptions: CaptureOptions;
@@ -44,6 +52,7 @@ export interface ParsedCaptureUrlCommandInput {
 }
 
 interface ParsedCliInput extends ParsedCaptureInput {
+  readonly htmlPath?: string;
   readonly method?: CaptureMethod;
   readonly optionsPath?: string;
   readonly outputPath?: string;
@@ -73,7 +82,7 @@ const CAPTURE_PARSE_OPTIONS = createParseOptions(false);
 const CAPTURE_COMMAND_PARSE_OPTIONS = createParseOptions(true);
 
 const DEFAULT_INPUT_READER: CaptureOptionsInputReader = {
-  readFile: (path) => readFile(path, "utf8"),
+  readFile: (path) => readFile(path),
   readStdin: readStandardInput,
 };
 
@@ -82,29 +91,49 @@ export async function parseCaptureInput(
   args: readonly string[],
   inputReader: CaptureOptionsInputReader = DEFAULT_INPUT_READER,
 ): Promise<ParsedCaptureInput> {
-  const parsed = await parseCaptureInputInternal(args, inputReader, false);
+  const parsed = parseCliInput(args, false);
   return {
-    captureOptions: parsed.captureOptions,
+    captureOptions: await readCaptureOptions(parsed, inputReader),
     positionals: parsed.positionals,
   };
 }
 
-/** Parse the capture command's URL, capture options, and two CLI controls. */
+/** Parse the capture command's URL or --html document, capture options, and CLI controls. */
 export async function parseCaptureCommandInput(
   args: readonly string[],
   inputReader: CaptureOptionsInputReader = DEFAULT_INPUT_READER,
 ): Promise<ParsedCaptureCommandInput> {
-  const parsed = await parseCaptureInputInternal(args, inputReader, true);
-  if (parsed.positionals.length !== 1) {
-    throw new CliUsageError("Command 'capture' requires exactly one URL.");
+  const parsed = parseCliInput(args, true);
+  const { htmlPath, method, optionsPath, outputPath, positionals } = parsed;
+
+  // Usage errors come before anything is read.
+  if (positionals.length !== (htmlPath === undefined ? 1 : 0)) {
+    throw new CliUsageError(
+      "Command 'capture' requires exactly one URL, or the --html option.",
+    );
+  }
+  if (htmlPath === "-" && optionsPath === "-") {
+    throw new CliUsageError(
+      "Options '--html' and '--options' can't both read from standard input.",
+    );
+  }
+  if (htmlPath !== undefined && method === "get") {
+    throw new CliUsageError(
+      "Option '--html' can't be used with '--method get': HTML is sent in a POST request.",
+    );
   }
 
-  return {
-    captureOptions: parsed.captureOptions,
-    method: parsed.method,
-    outputPath: parsed.outputPath,
-    targetUrl: parsed.positionals[0]!,
+  const controls: ParsedCaptureCommandControls = {
+    captureOptions: await readCaptureOptions(parsed, inputReader),
+    method,
+    outputPath,
   };
+
+  if (htmlPath === undefined) {
+    return { ...controls, targetUrl: positionals[0]! };
+  }
+
+  return { ...controls, html: await readHtml(htmlPath, inputReader) };
 }
 
 /** Parse the capture-url command's URL and capture options. */
@@ -112,46 +141,68 @@ export async function parseCaptureUrlCommandInput(
   args: readonly string[],
   inputReader: CaptureOptionsInputReader = DEFAULT_INPUT_READER,
 ): Promise<ParsedCaptureUrlCommandInput> {
-  const parsed = await parseCaptureInputInternal(args, inputReader, false);
+  const parsed = parseCliInput(args, false);
   if (parsed.positionals.length !== 1) {
     throw new CliUsageError("Command 'capture-url' requires exactly one URL.");
   }
 
   return {
-    captureOptions: parsed.captureOptions,
+    captureOptions: await readCaptureOptions(parsed, inputReader),
     targetUrl: parsed.positionals[0]!,
   };
 }
 
-async function parseCaptureInputInternal(
-  args: readonly string[],
+/** Read the --options object, if any, and let the capture flags override it. */
+async function readCaptureOptions(
+  parsedCliInput: ParsedCliInput,
   inputReader: CaptureOptionsInputReader,
-  includeCaptureControls: boolean,
-): Promise<ParsedCliInput> {
-  const parsedCliInput = parseCliInput(args, includeCaptureControls);
+): Promise<CaptureOptions> {
   let fileOptions: CaptureOptions = {};
 
   if (parsedCliInput.optionsPath !== undefined) {
-    const text =
-      parsedCliInput.optionsPath === "-"
-        ? await inputReader.readStdin()
-        : await inputReader.readFile(parsedCliInput.optionsPath);
-    fileOptions = parseOptionsObject(text);
+    const bytes = await readInput(parsedCliInput.optionsPath, inputReader);
+    fileOptions = parseOptionsObject(Buffer.from(bytes).toString("utf8"));
   }
 
   return {
-    captureOptions: {
-      ...fileOptions,
-      ...parsedCliInput.captureOptions,
-    },
-    ...(parsedCliInput.method === undefined
-      ? {}
-      : { method: parsedCliInput.method }),
-    ...(parsedCliInput.outputPath === undefined
-      ? {}
-      : { outputPath: parsedCliInput.outputPath }),
-    positionals: parsedCliInput.positionals,
+    ...fileOptions,
+    ...parsedCliInput.captureOptions,
   };
+}
+
+/** Read and decode the --html document, which must contain more than whitespace. */
+async function readHtml(
+  path: string,
+  inputReader: CaptureOptionsInputReader,
+): Promise<string> {
+  const html = decodeHtml(await readInput(path, inputReader));
+  if (html.trim() === "") {
+    throw new CliUsageError("Option '--html' received an empty document.");
+  }
+
+  return html;
+}
+
+function readInput(
+  path: string,
+  inputReader: CaptureOptionsInputReader,
+): Promise<Uint8Array> {
+  return path === "-" ? inputReader.readStdin() : inputReader.readFile(path);
+}
+
+/**
+ * Decode UTF-16 by its byte-order mark (Windows PowerShell 5.1 writes UTF-16 by
+ * default), and anything else as UTF-8. The decoder drops the byte-order mark.
+ */
+function decodeHtml(bytes: Uint8Array): string {
+  let encoding = "utf-8";
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+    encoding = "utf-16le";
+  } else if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+    encoding = "utf-16be";
+  }
+
+  return new TextDecoder(encoding).decode(bytes);
 }
 
 function createParseOptions(
@@ -167,6 +218,7 @@ function createParseOptions(
 
   options[OPTIONS_INPUT_NAME] = { type: "string" };
   if (includeCaptureControls) {
+    options[HTML_INPUT_NAME] = { type: "string" };
     options[METHOD_INPUT_NAME] = { type: "string" };
     options[OUTPUT_INPUT_NAME] = { type: "string", short: "o" };
   }
@@ -193,6 +245,7 @@ function parseCliInput(
 
   const captureOptions: Record<string, unknown> = {};
   const occurrences = new Map<string, number>();
+  let htmlPath: string | undefined;
   let method: CaptureMethod | undefined;
   let optionsPath: string | undefined;
   let outputPath: string | undefined;
@@ -206,6 +259,12 @@ function parseCliInput(
     if (token.name === OPTIONS_INPUT_NAME) {
       if (count > 1) throw duplicateOption(token.rawName);
       optionsPath = requiredTokenValue(token);
+      continue;
+    }
+
+    if (token.name === HTML_INPUT_NAME) {
+      if (count > 1) throw duplicateOption(token.rawName);
+      htmlPath = requiredTokenValue(token);
       continue;
     }
 
@@ -242,6 +301,7 @@ function parseCliInput(
 
   return {
     ...result,
+    ...(htmlPath === undefined ? {} : { htmlPath }),
     ...(method === undefined ? {} : { method }),
     ...(optionsPath === undefined ? {} : { optionsPath }),
     ...(outputPath === undefined ? {} : { outputPath }),
@@ -485,7 +545,7 @@ function usageErrorFrom(error: unknown): CliUsageError {
   );
 }
 
-async function readStandardInput(): Promise<string> {
+async function readStandardInput(): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
 
   for await (const chunk of process.stdin as AsyncIterable<unknown>) {
@@ -498,5 +558,5 @@ async function readStandardInput(): Promise<string> {
     }
   }
 
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
 }

@@ -24,6 +24,11 @@ const client: ScreenshotScoutSdkClient = {
     captureCalls += 1;
     return Promise.resolve(response);
   },
+  captureFromHtml() {
+    throw new Error(
+      "captureFromHtml must not be called by these URL captures.",
+    );
+  },
   buildCaptureUrl() {
     throw new Error("buildCaptureUrl must not be called by capture.");
   },

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -146,7 +146,47 @@ void test("compiled capture sends the request to SCREENSHOTSCOUT_BASE_URL", asyn
   assert.equal(result.code, 0);
   assert.equal(
     result.standardOutput.toString("utf8"),
-    "POST http://localhost:8787/v1/capture",
+    'POST http://localhost:8787/v1/capture\n{"url":"https://example.com/"}',
+  );
+  assert.deepEqual(result.standardError, Buffer.alloc(0));
+});
+
+void test("compiled capture sends the HTML from an --html file in a POST body", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "screenshotscout-cli-"));
+  context.after(() => rm(directory, { force: true, recursive: true }));
+  const html = "<!doctype html><title>Invoice</title><p>Grüße</p>";
+  const htmlPath = join(directory, "invoice.html");
+  // UTF-16 LE with a byte-order mark, as Windows PowerShell 5.1 writes by default.
+  await writeFile(
+    htmlPath,
+    Buffer.concat([Buffer.of(0xff, 0xfe), Buffer.from(html, "utf16le")]),
+  );
+
+  const result = await runCliProcess(
+    ["capture", "--html", htmlPath, "--format=pdf", "--output=-"],
+    { accessKey: "placeholder-access-key", echoRequest: true },
+  );
+
+  assert.equal(result.code, 0);
+  assert.equal(
+    result.standardOutput.toString("utf8"),
+    `POST https://api.screenshotscout.com/v1/capture\n${JSON.stringify({ html, format: "pdf" })}`,
+  );
+  assert.deepEqual(result.standardError, Buffer.alloc(0));
+});
+
+void test("compiled capture sends the HTML from --html - in a POST body", async () => {
+  const html = "<!doctype html><title>Привет</title>";
+  const result = await runCliProcess(["capture", "--html", "-", "--output=-"], {
+    accessKey: "placeholder-access-key",
+    echoRequest: true,
+    standardInput: html,
+  });
+
+  assert.equal(result.code, 0);
+  assert.equal(
+    result.standardOutput.toString("utf8"),
+    `POST https://api.screenshotscout.com/v1/capture\n${JSON.stringify({ html })}`,
   );
   assert.deepEqual(result.standardError, Buffer.alloc(0));
 });
@@ -228,6 +268,22 @@ void test("compiled capture refuses an explicit POST when a secret key is set", 
   assert.equal(
     result.standardError.toString("utf8"),
     "POST requests can't be signed. This client has a secret key from SCREENSHOTSCOUT_SECRET_KEY: send this capture with method GET, or use a client without a secret key and an API key that doesn't require signed requests.\n",
+  );
+  assertNoProgrammingDump(result.standardError);
+});
+
+void test("compiled capture refuses --html when a secret key is set", async () => {
+  const result = await runCliProcess(["capture", "--html", "-"], {
+    accessKey: "placeholder-access-key",
+    secretKey: "placeholder-secret-key",
+    standardInput: "<!doctype html><title>Invoice</title>",
+  });
+
+  assert.equal(result.code, 1);
+  assert.deepEqual(result.standardOutput, Buffer.alloc(0));
+  assert.equal(
+    result.standardError.toString("utf8"),
+    "`captureFromHtml` sends the HTML in a POST body, which can't be signed. This client has a secret key from SCREENSHOTSCOUT_SECRET_KEY: use a client without a secret key and an API key that doesn't require signed requests.\nUnset SCREENSHOTSCOUT_SECRET_KEY to send HTML.\n",
   );
   assertNoProgrammingDump(result.standardError);
 });

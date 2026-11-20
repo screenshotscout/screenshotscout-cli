@@ -15,6 +15,9 @@ const UNEXPECTED_READER: CaptureOptionsInputReader = {
   readStdin: () => Promise.reject(new Error("Unexpected standard-input read")),
 };
 
+// Non-ASCII letters and an emoji outside the Basic Multilingual Plane.
+const HTML = "<!doctype html><title>Grüße, 世界 😀</title><p>Привет</p>";
+
 void test("parses separated and inline string, number, and repeated flags", async () => {
   const parsed = await parseCaptureInput(
     [
@@ -193,11 +196,11 @@ void test("rejects an invalid capture method before reading options input", asyn
   const reader: CaptureOptionsInputReader = {
     readFile: () => {
       reads += 1;
-      return Promise.resolve("{}");
+      return Promise.resolve(utf8("{}"));
     },
     readStdin: () => {
       reads += 1;
-      return Promise.resolve("{}");
+      return Promise.resolve(utf8("{}"));
     },
   };
 
@@ -211,20 +214,200 @@ void test("rejects an invalid capture method before reading options input", asyn
   assert.equal(reads, 0);
 });
 
+void test("rejects the URL, --html, and standard-input usage errors before reading any input", async () => {
+  let reads = 0;
+  const reader: CaptureOptionsInputReader = {
+    readFile: () => {
+      reads += 1;
+      return Promise.resolve(utf8(HTML));
+    },
+    readStdin: () => {
+      reads += 1;
+      return Promise.resolve(utf8(HTML));
+    },
+  };
+  const oneUrlOrHtml =
+    /^Command 'capture' requires exactly one URL, or the --html option\.$/u;
+  const cases = [
+    { args: ["--options=file.json"], message: oneUrlOrHtml },
+    { args: ["one", "two", "--options=file.json"], message: oneUrlOrHtml },
+    {
+      args: ["target", "--html=page.html", "--options=file.json"],
+      message: oneUrlOrHtml,
+    },
+    {
+      args: ["--html", "-", "--options", "-"],
+      message:
+        /^Options '--html' and '--options' can't both read from standard input\.$/u,
+    },
+    {
+      args: ["--html=page.html", "--method=get", "--options=file.json"],
+      message:
+        /^Option '--html' can't be used with '--method get': HTML is sent in a POST request\.$/u,
+    },
+    {
+      args: ["--html=page.html", "--html", "other.html"],
+      message: /^Option '--html' may only be specified once\.$/u,
+    },
+    { args: ["--html"], message: /argument missing/u },
+  ] as const;
+
+  for (const { args, message } of cases) {
+    await expectUsageError(parseCaptureCommandInput(args, reader), message);
+  }
+  assert.equal(reads, 0);
+});
+
+void test("decodes an --html file as UTF-8, with or without a byte-order mark", async () => {
+  for (const bytes of [
+    utf8(HTML),
+    Uint8Array.of(0xef, 0xbb, 0xbf, ...utf8(HTML)),
+  ]) {
+    const parsed = await parseCaptureCommandInput(
+      ["--html", "page.html"],
+      fileReader(bytes),
+    );
+
+    assert.deepEqual(parsed, {
+      captureOptions: {},
+      html: HTML,
+      method: undefined,
+      outputPath: undefined,
+    });
+  }
+});
+
+void test("decodes a UTF-16 --html file by its byte-order mark", async () => {
+  const littleEndian = Buffer.from(HTML, "utf16le");
+  const bigEndian = Buffer.from(HTML, "utf16le").swap16();
+
+  for (const bytes of [
+    Uint8Array.of(0xff, 0xfe, ...littleEndian),
+    Uint8Array.of(0xfe, 0xff, ...bigEndian),
+  ]) {
+    const parsed = await parseCaptureCommandInput(
+      ["--html", "page.html"],
+      fileReader(bytes),
+    );
+
+    assert.equal(parsed.html, HTML);
+  }
+});
+
+void test("rejects an empty or whitespace-only --html document as a usage error", async () => {
+  const documents = [
+    new Uint8Array(),
+    utf8(" \t\r\n"),
+    Uint8Array.of(0xef, 0xbb, 0xbf),
+    Uint8Array.of(0xff, 0xfe, ...Buffer.from(" \r\n", "utf16le")),
+  ];
+
+  for (const bytes of documents) {
+    await expectUsageError(
+      parseCaptureCommandInput(["--html", "page.html"], fileReader(bytes)),
+      /^Option '--html' received an empty document\.$/u,
+    );
+  }
+});
+
+void test("reads the --html file and --options - from standard input", async () => {
+  const readPaths: string[] = [];
+  let stdinReads = 0;
+  const reader: CaptureOptionsInputReader = {
+    readFile: (path) => {
+      readPaths.push(path);
+      return Promise.resolve(utf8(HTML));
+    },
+    readStdin: () => {
+      stdinReads += 1;
+      return Promise.resolve(utf8('{"format":"pdf"}'));
+    },
+  };
+
+  const parsed = await parseCaptureCommandInput(
+    ["--html", "invoice.html", "--options", "-"],
+    reader,
+  );
+
+  assert.deepEqual(readPaths, ["invoice.html"]);
+  assert.equal(stdinReads, 1);
+  assert.deepEqual(parsed, {
+    captureOptions: { format: "pdf" },
+    html: HTML,
+    method: undefined,
+    outputPath: undefined,
+  });
+});
+
+void test("reads --html - from standard input next to an options file and POST", async () => {
+  const readPaths: string[] = [];
+  let stdinReads = 0;
+  const reader: CaptureOptionsInputReader = {
+    readFile: (path) => {
+      readPaths.push(path);
+      return Promise.resolve(utf8('{"format":"png","full_page":true}'));
+    },
+    readStdin: () => {
+      stdinReads += 1;
+      return Promise.resolve(utf8(HTML));
+    },
+  };
+
+  const parsed = await parseCaptureCommandInput(
+    [
+      "--html=-",
+      "--options=capture-options.json",
+      "--format=pdf",
+      "--method=post",
+      "-o",
+      "invoice.pdf",
+    ],
+    reader,
+  );
+
+  assert.deepEqual(readPaths, ["capture-options.json"]);
+  assert.equal(stdinReads, 1);
+  assert.deepEqual(parsed, {
+    captureOptions: { format: "pdf", fullPage: true },
+    html: HTML,
+    method: "post",
+    outputPath: "invoice.pdf",
+  });
+});
+
+void test("does not reclassify a missing --html file as a usage error", async () => {
+  const failure = Object.assign(
+    new Error("ENOENT: no such file or directory, open 'missing.html'"),
+    { code: "ENOENT" },
+  );
+  const reader: CaptureOptionsInputReader = {
+    readFile: () => Promise.reject(failure),
+    readStdin: () =>
+      Promise.reject(new Error("Unexpected standard-input read")),
+  };
+
+  await assert.rejects(
+    parseCaptureCommandInput(["--html", "missing.html"], reader),
+    (error: unknown) => error === failure,
+  );
+});
+
 void test("parses a snake_case JSON object and omits nulls and empty arrays", async () => {
   let receivedPath: string | undefined;
   const reader: CaptureOptionsInputReader = {
     readFile: (path) => {
       receivedPath = path;
       return Promise.resolve(
-        JSON.stringify({
-          format: "",
-          timeout: 0,
-          full_page: false,
-          cookies: ["a=1", "a=1", ""],
-          headers: [],
-          country: null,
-        }),
+        utf8(
+          JSON.stringify({
+            format: "",
+            timeout: 0,
+            full_page: false,
+            cookies: ["a=1", "a=1", ""],
+            headers: [],
+            country: null,
+          }),
+        ),
       );
     },
     readStdin: () =>
@@ -276,7 +459,7 @@ void test("reads --options - from standard input", async () => {
       Promise.reject(new Error(`Unexpected options-file read: ${path}`)),
     readStdin: () => {
       stdinReads += 1;
-      return Promise.resolve('{"response_type":"json"}');
+      return Promise.resolve(utf8('{"response_type":"json"}'));
     },
   };
 
@@ -393,12 +576,17 @@ void test("does not reclassify an options-file read failure as a usage error", a
   );
 });
 
-function fileReader(text: string): CaptureOptionsInputReader {
+function fileReader(content: string | Uint8Array): CaptureOptionsInputReader {
   return {
-    readFile: () => Promise.resolve(text),
+    readFile: () =>
+      Promise.resolve(typeof content === "string" ? utf8(content) : content),
     readStdin: () =>
       Promise.reject(new Error("Unexpected standard-input read")),
   };
+}
+
+function utf8(text: string): Uint8Array {
+  return new TextEncoder().encode(text);
 }
 
 async function expectUsageError(

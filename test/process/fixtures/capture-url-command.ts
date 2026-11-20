@@ -10,6 +10,10 @@ const client: ScreenshotScoutSdkClient = {
     captureCalls += 1;
     throw new Error("capture must not be called by capture-url.");
   },
+  captureFromHtml() {
+    captureCalls += 1;
+    throw new Error("captureFromHtml must not be called by capture-url.");
+  },
   buildCaptureUrl() {
     buildCaptureUrlCalls += 1;
     return returnedUrl;

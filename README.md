@@ -85,7 +85,21 @@ screenshotscout capture "https://example.com" \
 screenshotscout capture "https://example.com" --method post --format webp --output screenshot.webp
 ```
 
-`--method` and `--output` (or `-o`) are `capture` controls and are not accepted by `capture-url`.
+To render an HTML document instead of a URL, such as an invoice or a report you generated, pass `--html` with the path of an HTML file:
+
+```sh
+screenshotscout capture --html invoice.html --format pdf -o invoice.pdf
+```
+
+`--html -` reads the HTML from standard input instead. `capture` takes either one URL or `--html`, not both.
+
+Send a complete document that starts with `<!doctype html>`. A PDF takes its title from `<title>`. The page has no URL, so use absolute URLs for images, stylesheets and fonts, or add a `<base href>`. See [How to Render HTML](https://screenshotscout.com/docs/guides/render-html) for more.
+
+The HTML is read as UTF-8, with or without a byte-order mark, or as UTF-16 when it starts with a UTF-16 byte-order mark. Windows PowerShell 5.1 writes UTF-16 files by default.
+
+The HTML is sent in a POST request, which can't be signed. So `--html` can't be combined with `--method get`, and it needs an API key that doesn't require signed requests, with `SCREENSHOTSCOUT_SECRET_KEY` unset.
+
+`--html`, `--method` and `--output` (or `-o`) are `capture` controls and are not accepted by `capture-url`.
 
 ### Build a capture URL
 
@@ -137,7 +151,7 @@ screenshotscout capture "https://example.com" \
   --headers "X-Example: cli"
 ```
 
-Repeated values are not comma-split. Each CLI control (`--options`, `--method`, and `--output`) may also be supplied only once.
+Repeated values are not comma-split. Each CLI control (`--html`, `--options`, `--method`, and `--output`) may also be supplied only once.
 
 ### Options files
 
@@ -165,6 +179,8 @@ Or pipe the JSON object through standard input:
 printf '%s' '{"format":"webp","full_page":true,"block_cookie_banners":true}' |
   screenshotscout capture "https://example.com" --options - --output screenshot.webp
 ```
+
+Options files work the same with `capture --html`. Only one of `--options` and `--html` can read standard input, so `--options -` can't be combined with `--html -`.
 
 Options files are JSON data only; they do not support YAML, templates, environment interpolation, or nested includes. JSON `null` values and empty repeated arrays are omitted. Empty strings, `false`, and zero are retained.
 
@@ -230,6 +246,9 @@ More inline-flag, options-file, POSIX shell, PowerShell, and CI examples are in 
 - Run `screenshotscout --help` or `screenshotscout <command> --help` to check command syntax and current capture-option value shapes.
 - If the CLI reports that an access key is required, set `SCREENSHOTSCOUT_ACCESS_KEY` in the same process environment that runs the command.
 - If the API reports `signature_required`, set the matching `SCREENSHOTSCOUT_SECRET_KEY`. See [Signed requests](https://screenshotscout.com/docs/signed-requests).
+- If `--html` fails because `SCREENSHOTSCOUT_SECRET_KEY` is set, or the API reports `signature_required` for it, use an API key that doesn't require signed requests, without `SCREENSHOTSCOUT_SECRET_KEY`. HTML is sent in a POST request, which can't be signed.
+- If non-ASCII characters from an `--html` document come out wrong, save the file as UTF-8, or as UTF-16 with a byte-order mark, and pass its path. Windows PowerShell 5.1 replaces these characters when it pipes text to another program.
+- If images, stylesheets or fonts are missing from an `--html` capture, use absolute URLs or add a `<base href>`: the page has no URL, so relative links don't resolve.
 - If an option is rejected with exit status `2`, check whether it uses CLI `kebab-case`, whether a boolean uses bare or inline syntax, and whether a singleton flag was repeated.
 - If an options file is rejected, confirm that it is a JSON object using exact API `snake_case` names and JSON value types.
 - If a file write fails, confirm that its parent directory exists and is writable.

@@ -64,9 +64,12 @@ void test("generates exhaustive command help from the capture option descriptor"
   }
 
   assert.match(ROOT_HELP, /screenshotscout capture <url>/u);
+  assert.match(ROOT_HELP, /screenshotscout capture --html <path\|->/u);
+  assert.match(captureHelp, /^ {2}screenshotscout capture --html <path\|->/mu);
   assert.match(captureHelp, /--method <get\|post>/u);
+  assert.match(captureHelp, /^ {2}--html <path\|-> {10}Render HTML/mu);
   assert.match(captureHelp, /^ {2}-o, --output <path\|-> {4}Write/mu);
-  assert.doesNotMatch(captureUrlHelp, /--method|--output/u);
+  assert.doesNotMatch(captureUrlHelp, /--html|--method|--output/u);
 });
 
 void test("the executable boundary maps success, usage, and runtime failures", async () => {

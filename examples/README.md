@@ -96,3 +96,20 @@ screenshotscout capture "https://example.com" \
   --full-page=false \
   --output screenshot.webp
 ```
+
+## Capture from HTML
+
+Render an HTML file, such as an invoice you generated, as a PDF. The command is the same in POSIX shells and PowerShell:
+
+```sh
+screenshotscout capture --html invoice.html --format pdf -o invoice.pdf
+```
+
+In a POSIX shell, `--html -` reads the HTML from standard input:
+
+```sh
+printf '%s' '<!doctype html><title>Hello</title><h1>Hello</h1>' |
+  screenshotscout capture --html - --format png -o hello.png
+```
+
+The HTML is sent in a POST request, which can't be signed, so run these commands with an API key that doesn't require signed requests, and without `SCREENSHOTSCOUT_SECRET_KEY`.

@@ -128,6 +128,9 @@ function createRecordingClient(): {
       calls.push(args);
       return Promise.resolve(CAPTURE_RESPONSE);
     },
+    captureFromHtml() {
+      throw new Error("captureFromHtml should not be called in SDK tests.");
+    },
     buildCaptureUrl() {
       throw new Error("buildCaptureUrl should not be called in SDK tests.");
     },

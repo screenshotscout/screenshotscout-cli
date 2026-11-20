@@ -6,6 +6,9 @@ import test from "node:test";
 
 import {
   CaptureHttpMethod,
+  ScreenshotScoutClient,
+  ScreenshotScoutConfigurationError,
+  ScreenshotScoutSerializationError,
   type BinaryCaptureResponse,
   type CaptureOptions,
   type CaptureRequestOptions,
@@ -20,11 +23,21 @@ import type { CaptureOptionsInputReader } from "../../src/input.js";
 import type { CaptureResultIo } from "../../src/result.js";
 import type { ScreenshotScoutSdkClient } from "../../src/sdk.js";
 
+// A base URL set in the developer's own environment must not reach these tests.
+delete process.env.SCREENSHOTSCOUT_BASE_URL;
+
 type RecordedCaptureCall = readonly [
   targetUrl: string,
   captureOptions?: CaptureOptions | null,
   captureRequestOptions?: CaptureRequestOptions | null,
 ];
+
+type RecordedCaptureFromHtmlCall = readonly [
+  html: string,
+  captureOptions?: CaptureOptions | null,
+];
+
+const HTML = "<!doctype html><title>Invoice</title><p>Grüße</p>";
 
 const UNEXPECTED_READER: CaptureOptionsInputReader = {
   readFile: (path) =>
@@ -43,13 +56,15 @@ void test("passes the exact URL, merged options, and GET method to one SDK call"
     readFile: (path) => {
       readPath = path;
       return Promise.resolve(
-        JSON.stringify({
-          format: "jpeg",
-          timeout: 10,
-          full_page: true,
-          headers: ["file: first", "file: second"],
-          cache_key: "retained-from-file",
-        }),
+        utf8(
+          JSON.stringify({
+            format: "jpeg",
+            timeout: 10,
+            full_page: true,
+            headers: ["file: first", "file: second"],
+            cache_key: "retained-from-file",
+          }),
+        ),
       );
     },
     readStdin: () =>
@@ -211,6 +226,9 @@ void test("rejects URL-shape and singleton-control usage errors before an SDK ca
     ["target", "--method=get", "--method", "post"],
     ["target", "-o", "one", "--output", "two"],
     ["target", "--method=GET"],
+    ["target", "--html", "page.html"],
+    ["--html", "-", "--options", "-"],
+    ["--html", "page.html", "--method=get"],
   ] as const;
 
   for (const args of cases) {
@@ -231,17 +249,128 @@ void test("rejects URL-shape and singleton-control usage errors before an SDK ca
       },
     );
     assert.equal(recordingClient.calls.length, 0);
+    assert.equal(recordingClient.htmlCalls.length, 0);
   }
+});
+
+void test("passes the decoded --html document and merged options to one captureFromHtml call", async () => {
+  const returnedBytes = Uint8Array.of(37, 80, 68, 70);
+  const recordingClient = createRecordingClient(
+    binaryResponse(returnedBytes, "application/pdf"),
+  );
+  const recordingIo = createRecordingIo();
+  const readPaths: string[] = [];
+  const inputReader: CaptureOptionsInputReader = {
+    readFile: (path) => {
+      readPaths.push(path);
+      return Promise.resolve(
+        path === "invoice.html"
+          ? Uint8Array.of(0xef, 0xbb, 0xbf, ...utf8(HTML))
+          : utf8('{"format":"png","pdf_print_background":true}'),
+      );
+    },
+    readStdin: () =>
+      Promise.reject(new Error("Unexpected standard-input read")),
+  };
+
+  await runCaptureCommand(
+    [
+      "--html",
+      "invoice.html",
+      "--options=capture-options.json",
+      "--format",
+      "pdf",
+      "--method=post",
+      "-o",
+      "invoice.pdf",
+    ],
+    {
+      client: recordingClient.client,
+      inputReader,
+      resultIo: recordingIo.io,
+    },
+  );
+
+  assert.deepEqual(readPaths, ["capture-options.json", "invoice.html"]);
+  assert.deepEqual(recordingClient.htmlCalls, [
+    [HTML, { format: "pdf", pdfPrintBackground: true }],
+  ]);
+  assert.deepEqual(recordingClient.calls, []);
+  assert.deepEqual(recordingIo.files, [
+    { path: "invoice.pdf", bytes: returnedBytes },
+  ]);
+  assert.deepEqual(recordingIo.standardOutput, []);
+});
+
+void test("adds how to send HTML to the SDK's refusal of a client with a secret key", async () => {
+  let transportCalls = 0;
+  const client = new ScreenshotScoutClient({
+    accessKey: "placeholder-access-key",
+    secretKey: "placeholder-secret-key",
+    fetch: () => {
+      transportCalls += 1;
+      return Promise.reject(new Error("Unexpected SDK transport call"));
+    },
+  });
+  const recordingIo = createRecordingIo();
+
+  await assert.rejects(
+    runCaptureCommand(["--html", "invoice.html"], {
+      client,
+      inputReader: htmlFileReader(HTML),
+      resultIo: recordingIo.io,
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.ok(!(error instanceof CliUsageError));
+      assert.ok(error.cause instanceof ScreenshotScoutConfigurationError);
+      assert.equal(
+        error.message,
+        `${error.cause.message}\nUnset SCREENSHOTSCOUT_SECRET_KEY to send HTML.`,
+      );
+      return true;
+    },
+  );
+  assert.equal(transportCalls, 0);
+  assert.deepEqual(recordingIo.files, []);
+  assert.deepEqual(recordingIo.standardOutput, []);
+});
+
+void test("propagates other captureFromHtml failures unchanged", async () => {
+  const sdkFailure = new ScreenshotScoutSerializationError(
+    "unchanged SDK failure",
+    "html",
+  );
+  const sdkClient = createRejectingClient(sdkFailure);
+  const untouchedIo = createRecordingIo();
+
+  await assert.rejects(
+    runCaptureCommand(["--html", "invoice.html"], {
+      client: sdkClient.client,
+      inputReader: htmlFileReader(HTML),
+      resultIo: untouchedIo.io,
+    }),
+    (error: unknown) => error === sdkFailure,
+  );
+  assert.deepEqual(sdkClient.htmlCalls, [[HTML, {}]]);
+  assert.deepEqual(untouchedIo.files, []);
+  assert.deepEqual(untouchedIo.standardOutput, []);
 });
 
 function createRecordingClient(response: CaptureResponse): {
   readonly calls: RecordedCaptureCall[];
+  readonly htmlCalls: RecordedCaptureFromHtmlCall[];
   readonly client: ScreenshotScoutSdkClient;
 } {
   const calls: RecordedCaptureCall[] = [];
+  const htmlCalls: RecordedCaptureFromHtmlCall[] = [];
   const client: ScreenshotScoutSdkClient = {
     capture(...args: RecordedCaptureCall) {
       calls.push(args);
+      return Promise.resolve(response);
+    },
+    captureFromHtml(...args: RecordedCaptureFromHtmlCall) {
+      htmlCalls.push(args);
       return Promise.resolve(response);
     },
     buildCaptureUrl() {
@@ -249,17 +378,23 @@ function createRecordingClient(response: CaptureResponse): {
     },
   };
 
-  return { calls, client };
+  return { calls, htmlCalls, client };
 }
 
 function createRejectingClient(failure: Error): {
   readonly calls: RecordedCaptureCall[];
+  readonly htmlCalls: RecordedCaptureFromHtmlCall[];
   readonly client: ScreenshotScoutSdkClient;
 } {
   const calls: RecordedCaptureCall[] = [];
+  const htmlCalls: RecordedCaptureFromHtmlCall[] = [];
   const client: ScreenshotScoutSdkClient = {
     capture(...args: RecordedCaptureCall) {
       calls.push(args);
+      return Promise.reject(failure);
+    },
+    captureFromHtml(...args: RecordedCaptureFromHtmlCall) {
+      htmlCalls.push(args);
       return Promise.reject(failure);
     },
     buildCaptureUrl() {
@@ -267,7 +402,19 @@ function createRejectingClient(failure: Error): {
     },
   };
 
-  return { calls, client };
+  return { calls, htmlCalls, client };
+}
+
+function htmlFileReader(html: string): CaptureOptionsInputReader {
+  return {
+    readFile: () => Promise.resolve(utf8(html)),
+    readStdin: () =>
+      Promise.reject(new Error("Unexpected standard-input read")),
+  };
+}
+
+function utf8(text: string): Uint8Array {
+  return new TextEncoder().encode(text);
 }
 
 function binaryResponse(

@@ -18,11 +18,12 @@ const mockFetch: typeof globalThis.fetch = (input, init) => {
     return Promise.reject(new Error(transportFailure));
   }
 
-  // Echo the request line, so a test can check the method and URL the CLI sent.
+  // Echo the request line and any body after a line break, so a test can check what the CLI sent.
   if (process.env.CLI_TEST_ECHO_REQUEST !== undefined) {
     const url = input instanceof Request ? input.url : input.toString();
+    const body = typeof init?.body === "string" ? `\n${init.body}` : "";
     return Promise.resolve(
-      new Response(`${init?.method ?? "GET"} ${url}`, {
+      new Response(`${init?.method ?? "GET"} ${url}${body}`, {
         status: 200,
         headers: { "Content-Type": "image/png" },
       }),
